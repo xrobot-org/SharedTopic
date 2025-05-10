@@ -1,0 +1,130 @@
+#pragma once
+
+// clang-format off
+/* === MODULE MANIFEST ===
+module_name: SharedTopic
+module_description: No description provided
+constructor_args:
+  - uart_name: "usart1"
+  - buffer_size: 256
+  - topic_name:
+    - "topic1"
+    - "topic2"
+required_hardware: uart_name, ramfs
+=== END MANIFEST === */
+// clang-format on
+
+#include <cstdint>
+
+#include "app_framework.hpp"
+#include "libxr_def.hpp"
+#include "libxr_rw.hpp"
+#include "libxr_type.hpp"
+#include "logger.hpp"
+#include "message.hpp"
+#include "semaphore.hpp"
+#include "thread.hpp"
+#include "uart.hpp"
+
+class SharedTopic : public LibXR::Application
+{
+ public:
+  SharedTopic(LibXR::HardwareContainer &hw, LibXR::ApplicationManager &app,
+              const char *uart_name, uint32_t buffer_size,
+              std::initializer_list<const char *> topic_names)
+      : uart_(hw.template Find<LibXR::UART>(uart_name)),
+        server_(buffer_size),
+        rx_buffer_(new uint8_t[buffer_size], buffer_size),
+        cmd_file_(LibXR::RamFS::CreateFile("shared_topic", CommandFunc, this))
+  {
+    for (const char *name : topic_names)
+    {
+      auto topic = LibXR::Topic::Find(name);
+      if (topic == nullptr)
+      {
+        XR_LOG_ERROR("Topic not found: %s", name);
+        ASSERT(false);
+      }
+      server_.Register(topic);
+    }
+
+    hw.template FindOrExit<LibXR::RamFS>({"ramfs"})->Add(cmd_file_);
+
+    rx_thread_.Create(this, RxThreadFun, "SharedTopic::RxThread", 512,
+                      LibXR::Thread::Priority::REALTIME);
+
+    app.Register(*this);
+  }
+
+  static void RxThreadFun(SharedTopic *self)
+  {
+    LibXR::Semaphore sem;
+    LibXR::ReadOperation op(sem);
+    while (true)
+    {
+      auto size =
+          LibXR::max(sizeof(LibXR::Topic::PackedDataHeader),
+                     LibXR::min(self->uart_->read_port_.Size(), self->rx_buffer_.size_));
+      auto ans =
+          self->uart_->read_port_(LibXR::RawData{self->rx_buffer_.addr_, size}, op);
+
+      if (ans == ErrorCode::OK)
+      {
+        auto ans = self->server_.ParseData(LibXR::RawData{self->rx_buffer_.addr_, size});
+      }
+
+      self->rx_count_ += size;
+    }
+  }
+
+  void OnMonitor() override {}
+
+  static int CommandFunc(SharedTopic *self, int argc, char **argv)
+  {
+    if (argc == 1)
+    {
+      LibXR::STDIO::Printf("Usage:\r\n");
+      LibXR::STDIO::Printf("  monitor [time_ms] [interval_ms] - test received speed\r\n");
+      return 0;
+    }
+    else if (argc == 4)
+    {
+      if (strcmp(argv[1], "monitor") == 0)
+      {
+        int time = atoi(argv[2]);
+        int delay = atoi(argv[3]);
+        auto start = self->rx_count_;
+        while (time > 0)
+        {
+          LibXR::Thread::Sleep(delay);
+          LibXR::STDIO::Printf(
+              "%f Mbps\r\n", static_cast<float>(self->rx_count_ - start) * 8.0 / 1024.0 /
+                                 1024.0 / delay * 1000.0);
+          time -= delay;
+          start = self->rx_count_;
+        }
+      }
+    }
+    else
+    {
+      LibXR::STDIO::Printf("Error: Invalid arguments.\r\n");
+      return -1;
+    }
+
+    return 0;
+  }
+
+ private:
+  LibXR::UART *uart_;
+
+  LibXR::Topic::Server server_;
+
+  LibXR::RawData rx_buffer_;
+
+  size_t rx_count_ = 0;
+
+  LibXR::RamFS::File cmd_file_;
+
+  LibXR::Thread rx_thread_;
+  LibXR::Thread tx_thread_;
+};
