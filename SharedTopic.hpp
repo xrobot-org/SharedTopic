@@ -6,6 +6,7 @@ module_name: SharedTopic
 module_description: No description provided
 constructor_args:
   - uart_name: "usart1"
+  - task_stack_depth: 512
   - buffer_size: 256
   - topic_name:
     - "topic1"
@@ -30,7 +31,7 @@ class SharedTopic : public LibXR::Application
 {
  public:
   SharedTopic(LibXR::HardwareContainer &hw, LibXR::ApplicationManager &app,
-              const char *uart_name, uint32_t buffer_size,
+              const char *uart_name, uint32_t task_stack_depth, uint32_t buffer_size,
               std::initializer_list<const char *> topic_names)
       : uart_(hw.template Find<LibXR::UART>(uart_name)),
         server_(buffer_size),
@@ -50,7 +51,7 @@ class SharedTopic : public LibXR::Application
 
     hw.template FindOrExit<LibXR::RamFS>({"ramfs"})->Add(cmd_file_);
 
-    rx_thread_.Create(this, RxThreadFun, "SharedTopic::RxThread", 512,
+    rx_thread_.Create(this, RxThreadFun, "SharedTopic::RxThread", task_stack_depth,
                       LibXR::Thread::Priority::REALTIME);
 
     app.Register(*this);
