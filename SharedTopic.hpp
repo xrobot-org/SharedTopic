@@ -1,8 +1,7 @@
 #pragma once
 
 // clang-format off
-/* === MODULE MANIFEST ===
-module_name: SharedTopic
+/* === MODULE MANIFEST V2 ===
 module_description: No description provided
 constructor_args:
   - uart_name: "usart1"
@@ -11,7 +10,9 @@ constructor_args:
   - topic_name:
     - "topic1"
     - "topic2"
+template_args: []
 required_hardware: uart_name, ramfs
+depends: []
 === END MANIFEST === */
 // clang-format on
 
@@ -60,8 +61,8 @@ class SharedTopic : public LibXR::Application {
     while (true) {
       auto size = LibXR::max(
           sizeof(LibXR::Topic::PackedDataHeader),
-          LibXR::min(self->uart_->read_port_.Size(), self->rx_buffer_.size_));
-      auto ans = self->uart_->read_port_(
+          LibXR::min(self->uart_->read_port_->Size(), self->rx_buffer_.size_));
+      auto ans = self->uart_->Read(
           LibXR::RawData{self->rx_buffer_.addr_, size}, op);
 
       if (ans == ErrorCode::OK) {
