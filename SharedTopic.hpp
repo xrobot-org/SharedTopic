@@ -5,7 +5,7 @@
 module_description: SharedTopic 是一个基于 UART 的多 Topic 数据共享与解析服务端模块 / SharedTopic is a UART-based multi-topic data sharing and parsing server module
 constructor_args:
   - uart_name: "usart1"
-  - task_stack_depth: 512
+  - task_stack_depth: 2048
   - buffer_size: 256
   - topic_name:
     - "topic1"
