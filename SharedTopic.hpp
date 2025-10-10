@@ -75,6 +75,7 @@ class SharedTopic : public LibXR::Application
     LibXR::ReadOperation op(sem);
     while (true)
     {
+      self->uart_->Read({nullptr, 0}, op);
       auto size =
           LibXR::max(sizeof(LibXR::Topic::PackedDataHeader),
                      LibXR::min(self->uart_->read_port_->Size(), self->rx_buffer_.size_));
