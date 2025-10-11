@@ -17,6 +17,7 @@ depends: []
 // clang-format on
 
 #include <cstdint>
+#include <cstring>
 
 #include "app_framework.hpp"
 #include "libxr_def.hpp"
@@ -47,7 +48,10 @@ class SharedTopic : public LibXR::Application
       : uart_(hw.template Find<LibXR::UART>(uart_name)),
         server_(buffer_size),
         rx_buffer_(new uint8_t[buffer_size], buffer_size),
-        cmd_file_(LibXR::RamFS::CreateFile("shared_topic", CommandFunc, this))
+        cmd_name_(new char[sizeof("shared_topic:") + strlen(uart_name)]),
+        cmd_file_((strcpy(cmd_name_, "shared_topic:"),
+                   strcpy(cmd_name_ + strlen("shared_topic:"), uart_name),
+                   LibXR::RamFS::CreateFile(cmd_name_, CommandFunc, this)))
   {
     for (auto config : topic_configs)
     {
@@ -135,6 +139,8 @@ class SharedTopic : public LibXR::Application
   LibXR::RawData rx_buffer_;
 
   size_t rx_count_ = 0;
+
+  char *cmd_name_;
 
   LibXR::RamFS::File cmd_file_;
 
