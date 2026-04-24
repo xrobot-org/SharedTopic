@@ -81,7 +81,7 @@ class SharedTopic : public LibXR::Application {
       auto ans =
           self->uart_->Read(LibXR::RawData{self->rx_buffer_.addr_, size}, op);
 
-      if (ans == ErrorCode::OK) {
+      if (ans == LibXR::ErrorCode::OK) {
         self->server_.ParseData(LibXR::RawData{self->rx_buffer_.addr_, size});
       }
 
