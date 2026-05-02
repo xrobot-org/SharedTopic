@@ -5,7 +5,6 @@
 module_description: SharedTopic 是一个基于 UART 的多 Topic 数据共享与解析服务端模块 / SharedTopic is a UART-based multi-topic data sharing and parsing server module
 constructor_args:
   - uart_name: "usart1"
-  - task_stack_depth: 2048
   - buffer_size: 256
   - topic_configs:
     - "topic1"
@@ -17,6 +16,7 @@ depends: []
 // clang-format on
 
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 
 #include "app_framework.hpp"
@@ -25,7 +25,6 @@ depends: []
 #include "libxr_type.hpp"
 #include "logger.hpp"
 #include "message.hpp"
-#include "semaphore.hpp"
 #include "thread.hpp"
 #include "uart.hpp"
 
@@ -42,8 +41,7 @@ class SharedTopic : public LibXR::Application {
   };
 
   SharedTopic(LibXR::HardwareContainer& hw, LibXR::ApplicationManager& app,
-              const char* uart_name, uint32_t task_stack_depth,
-              uint32_t buffer_size,
+              const char* uart_name, uint32_t buffer_size,
               std::initializer_list<TopicConfig> topic_configs)
       : uart_(hw.template Find<LibXR::UART>(uart_name)),
         server_(buffer_size),
@@ -52,6 +50,9 @@ class SharedTopic : public LibXR::Application {
         cmd_file_((strcpy(cmd_name_, "shared_topic:"),
                    strcpy(cmd_name_ + strlen("shared_topic:"), uart_name),
                    LibXR::RamFS::CreateFile(cmd_name_, CommandFunc, this))) {
+    ASSERT(uart_ != nullptr);
+    ASSERT(uart_->read_port_ != nullptr);
+
     for (auto config : topic_configs) {
       auto domain = LibXR::Topic::Domain(config.domain);
       auto topic = LibXR::Topic::Find(config.name, &domain);
@@ -64,29 +65,15 @@ class SharedTopic : public LibXR::Application {
 
     hw.template FindOrExit<LibXR::RamFS>({"ramfs"})->Add(cmd_file_);
 
-    rx_thread_.Create(this, RxThreadFun, "SharedTopic::RxThread",
-                      task_stack_depth, LibXR::Thread::Priority::REALTIME);
+    rx_callback_ = LibXR::Callback<LibXR::ErrorCode>::CreateGuarded(
+        [](bool in_isr, SharedTopic* self, LibXR::ErrorCode status) {
+          self->OnRxReady(in_isr, status);
+        },
+        this);
+    rx_ready_op_ = LibXR::ReadOperation(rx_callback_);
+    StartRxWait(false);
 
     app.Register(*this);
-  }
-
-  static void RxThreadFun(SharedTopic* self) {
-    LibXR::Semaphore sem;
-    LibXR::ReadOperation op(sem);
-    while (true) {
-      self->uart_->Read({nullptr, 0}, op);
-      auto size = LibXR::max(
-          sizeof(LibXR::Topic::PackedDataHeader),
-          LibXR::min(self->uart_->read_port_->Size(), self->rx_buffer_.size_));
-      auto ans =
-          self->uart_->Read(LibXR::RawData{self->rx_buffer_.addr_, size}, op);
-
-      if (ans == LibXR::ErrorCode::OK) {
-        self->server_.ParseData(LibXR::RawData{self->rx_buffer_.addr_, size});
-      }
-
-      self->rx_count_ += size;
-    }
   }
 
   void OnMonitor() override {}
@@ -118,6 +105,28 @@ class SharedTopic : public LibXR::Application {
   }
 
  private:
+  void OnRxReady(bool in_isr, LibXR::ErrorCode status) {
+    if (status == LibXR::ErrorCode::OK) {
+      auto size = LibXR::min(uart_->read_port_->Size(), rx_buffer_.size_);
+      if (size > 0) {
+        auto ans =
+            uart_->Read(LibXR::RawData{rx_buffer_.addr_, size}, rx_data_op_, in_isr);
+        if (ans == LibXR::ErrorCode::OK) {
+          server_.ParseDataFromCallback(
+              LibXR::ConstRawData{rx_buffer_.addr_, size}, in_isr);
+          rx_count_ += size;
+        }
+      }
+    }
+
+    StartRxWait(in_isr);
+  }
+
+  void StartRxWait(bool in_isr) {
+    auto ans = uart_->Read({nullptr, 0}, rx_ready_op_, in_isr);
+    ASSERT(ans == LibXR::ErrorCode::OK);
+  }
+
   LibXR::UART* uart_;
 
   LibXR::Topic::Server server_;
@@ -130,6 +139,7 @@ class SharedTopic : public LibXR::Application {
 
   LibXR::RamFS::File cmd_file_;
 
-  LibXR::Thread rx_thread_;
-  LibXR::Thread tx_thread_;
+  LibXR::Callback<LibXR::ErrorCode> rx_callback_;
+  LibXR::ReadOperation rx_ready_op_;
+  LibXR::ReadOperation rx_data_op_;
 };
