@@ -14,9 +14,20 @@ SharedTopic is a UART-based multi-topic data sharing and server module.
 ## 构造参数 / Constructor Arguments
 
 - uart_name: 串口设备名 / UART device name (e.g., "usart1")
-- task_stack_depth: 任务堆栈大小 / Task stack depth (e.g., 512)
 - buffer_size: 接收缓冲区字节数 / RX buffer size (e.g., 256)
-- topic_names: 需要注册并分发的 Topic 名称列表 / List of topic names to register (e.g., ["topic1", "topic2"])
+- topic_configs: 需要注册并分发的 Topic 配置列表。每项可以只写 topic 名，也可以写
+  `[topic, domain]`。/ Topic configs to register and dispatch. Each item may be a
+  topic name or `[topic, domain]`.
+
+## 运行方式
+
+`SharedTopic` 不创建接收线程。模块在 UART `read_port` 上挂 0 字节 read 作为可读事件；
+一旦 UART 收到数据，回调会读取当前已有字节并调用 `Topic::Server::ParseDataFromCallback()`。
+解析出的 Topic 会继续沿 libxr callback/ISR 语义发布，串口包里的 envelope timestamp 会被保留。
+
+读取 UART 时会先按 `buffer_size` 成块搬到本地缓存，再逐字节喂给 `Topic::Server`。
+这样可以避免 parser 内部固定队列在“半包残留 + 新批次较大”时按整批写入语义丢数据。
+`buffer_size` 仍必须不小于需要接收的最大单个 Topic 串口包。
 
 ## 依赖 / Depends
 
