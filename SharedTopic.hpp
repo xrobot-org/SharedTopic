@@ -25,6 +25,7 @@ depends: []
 #include "libxr_type.hpp"
 #include "logger.hpp"
 #include "message.hpp"
+#include "semaphore.hpp"
 #include "thread.hpp"
 #include "uart.hpp"
 
@@ -43,15 +44,15 @@ class SharedTopic : public LibXR::Application {
   SharedTopic(LibXR::HardwareContainer& hw, LibXR::ApplicationManager& app,
               const char* uart_name, uint32_t buffer_size,
               std::initializer_list<TopicConfig> topic_configs)
-      : uart_(hw.template Find<LibXR::UART>(uart_name)),
+      : uart_(hw.template FindOrExit<LibXR::UART>({uart_name})),
         server_(buffer_size),
         rx_buffer_(new uint8_t[buffer_size], buffer_size),
         cmd_name_(new char[sizeof("shared_topic:") + strlen(uart_name)]),
         cmd_file_((strcpy(cmd_name_, "shared_topic:"),
                    strcpy(cmd_name_ + strlen("shared_topic:"), uart_name),
                    LibXR::RamFS::CreateFile(cmd_name_, CommandFunc, this))) {
-    ASSERT(uart_ != nullptr);
     ASSERT(uart_->read_port_ != nullptr);
+    ASSERT(uart_->read_port_->Readable());
 
     for (auto config : topic_configs) {
       auto domain = LibXR::Topic::Domain(config.domain);
@@ -65,13 +66,8 @@ class SharedTopic : public LibXR::Application {
 
     hw.template FindOrExit<LibXR::RamFS>({"ramfs"})->Add(cmd_file_);
 
-    rx_callback_ = LibXR::Callback<LibXR::ErrorCode>::CreateGuarded(
-        [](bool in_isr, SharedTopic* self, LibXR::ErrorCode status) {
-          self->OnRxReady(in_isr, status);
-        },
-        this);
-    rx_ready_op_ = LibXR::ReadOperation(rx_callback_);
-    StartRxWait(false);
+    rx_thread_.Create<SharedTopic*>(this, RxThread, "shared_topic", 2048,
+                                    LibXR::Thread::Priority::MEDIUM);
 
     app.Register(*this);
   }
@@ -81,7 +77,8 @@ class SharedTopic : public LibXR::Application {
   static int CommandFunc(SharedTopic* self, int argc, char** argv) {
     if (argc == 1) {
       LibXR::STDIO::Printf<"Usage:\r\n">();
-      LibXR::STDIO::Printf<"  monitor [time_ms] [interval_ms] - test received speed\r\n">();
+      LibXR::STDIO::Printf<
+          "  monitor [time_ms] [interval_ms] - test received speed\r\n">();
       return 0;
     } else if (argc == 4) {
       if (strcmp(argv[1], "monitor") == 0) {
@@ -90,8 +87,9 @@ class SharedTopic : public LibXR::Application {
         auto start = self->rx_count_;
         while (time > 0) {
           LibXR::Thread::Sleep(delay);
-          LibXR::STDIO::Printf<"%f Mbps\r\n">(static_cast<float>(self->rx_count_ - start) * 8.0 /
-                                 1024.0 / 1024.0 / delay * 1000.0);
+          LibXR::STDIO::Printf<"%f Mbps\r\n">(
+              static_cast<float>(self->rx_count_ - start) * 8.0 / 1024.0 /
+              1024.0 / delay * 1000.0);
           time -= delay;
           start = self->rx_count_;
         }
@@ -105,29 +103,29 @@ class SharedTopic : public LibXR::Application {
   }
 
  private:
-  void OnRxReady(bool in_isr, LibXR::ErrorCode status) {
-    if (status == LibXR::ErrorCode::OK) {
-      auto size = LibXR::min(uart_->read_port_->Size(), rx_buffer_.size_);
-      if (size > 0) {
-        auto ans =
-            uart_->Read(LibXR::RawData{rx_buffer_.addr_, size}, rx_data_op_, in_isr);
-        if (ans == LibXR::ErrorCode::OK) {
-          auto* data = static_cast<uint8_t*>(rx_buffer_.addr_);
-          for (size_t i = 0; i < size; i++) {
-            server_.ParseDataFromCallback(LibXR::ConstRawData{data + i, 1},
-                                          in_isr);
-          }
-          rx_count_ += size;
+  static void RxThread(SharedTopic* self) { self->RunRxLoop(); }
+
+  void RunRxLoop() {
+    LibXR::ReadOperation wait_op(rx_sem_);
+    LibXR::ReadOperation read_op;
+
+    while (true) {
+      auto read_status = uart_->Read({nullptr, 0}, wait_op);
+      if (read_status != LibXR::ErrorCode::OK) {
+        continue;
+      }
+
+      while (uart_->read_port_->Size() > 0) {
+        auto size = LibXR::min(uart_->read_port_->Size(), rx_buffer_.size_);
+        read_status = uart_->Read(LibXR::RawData{rx_buffer_.addr_, size}, read_op);
+        if (read_status != LibXR::ErrorCode::OK) {
+          break;
         }
+
+        server_.ParseData(LibXR::ConstRawData{rx_buffer_.addr_, size});
+        rx_count_ += size;
       }
     }
-
-    StartRxWait(in_isr);
-  }
-
-  void StartRxWait(bool in_isr) {
-    auto ans = uart_->Read({nullptr, 0}, rx_ready_op_, in_isr);
-    ASSERT(ans == LibXR::ErrorCode::OK);
   }
 
   LibXR::UART* uart_;
@@ -142,7 +140,6 @@ class SharedTopic : public LibXR::Application {
 
   LibXR::RamFS::File cmd_file_;
 
-  LibXR::Callback<LibXR::ErrorCode> rx_callback_;
-  LibXR::ReadOperation rx_ready_op_;
-  LibXR::ReadOperation rx_data_op_;
+  LibXR::Semaphore rx_sem_;
+  LibXR::Thread rx_thread_;
 };
