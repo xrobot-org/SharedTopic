@@ -1,8 +1,19 @@
 # SharedTopic
 
-SharedTopic 是一个基于 UART 的多 Topic 数据共享与解析服务端模块。  
+## Static assembly source line
 
-SharedTopic is a UART-based multi-topic data sharing and server module.  
+This source line uses explicit C++ constructor dependencies and ordered instance
+arguments. Inspect the current primary header with `xrobot_mod_parser --path .`;
+its declarations, not old manifest/config examples, define the interface.
+Historical HardwareContainer/ApplicationManager examples below apply only to the
+older dynamic source tags. Device/protocol descriptions remain relevant.
+See the XRobot [migration guide](https://github.com/xrobot-org/XRobot/blob/dev/MIGRATION.md).
+Compilation is not hardware validation; retain version-specific board evidence.
+
+
+SharedTopic 是一个基于 UART 的多 Topic 数据共享与解析服务端模块。
+
+SharedTopic is a UART-based multi-topic data sharing and server module.
 
 ---
 
