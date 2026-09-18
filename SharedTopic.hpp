@@ -36,10 +36,13 @@ class SharedTopic
     TopicConfig(const char* name, const char* domain) : name(name), domain(domain) {}
   };
 
-  SharedTopic(LibXR::UART& external_uart_name, LibXR::RamFS& external_ramfs,
-              const char* uart_name, uint32_t buffer_size,
-              std::initializer_list<TopicConfig> topic_configs)
-      : uart_(std::addressof(external_uart_name)),
+  SharedTopic(
+      LibXR::UART& uart,
+      LibXR::RamFS& ramfs,
+      const char* uart_name = "usart1",
+      uint32_t buffer_size = 256,
+      std::initializer_list<TopicConfig> topic_configs = {"topic1", {"topic2", "libxr_def_domain"}})
+      : uart_(std::addressof(uart)),
         server_(buffer_size),
         rx_buffer_(new uint8_t[buffer_size], buffer_size),
         cmd_name_(new char[sizeof("shared_topic:") + strlen(uart_name)]),
@@ -62,7 +65,7 @@ class SharedTopic
       server_.Register(topic);
     }
 
-    external_ramfs.Add(cmd_file_);
+    ramfs.Add(cmd_file_);
 
     rx_thread_.Create<SharedTopic*>(this, RxThread, "shared_topic", 2048,
                                     LibXR::Thread::Priority::MEDIUM);
