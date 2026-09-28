@@ -71,8 +71,6 @@ class SharedTopic
                                     LibXR::Thread::Priority::MEDIUM);
   }
 
-  void OnMonitor() {}
-
   static int CommandFunc(SharedTopic* self, int argc, char** argv)
   {
     if (argc == 1)
