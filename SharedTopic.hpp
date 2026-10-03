@@ -76,12 +76,11 @@ class SharedTopic
    * @param topic_configs 需要注册并分发的 Topic 列表，Topic 须已存在。
    *                      Topics to register and dispatch; they must already exist.
    */
-  SharedTopic(
-      LibXR::UART& uart,
-      LibXR::RamFS& ramfs,
-      const char* uart_name = "usart1",
-      uint32_t buffer_size = 256,
-      std::initializer_list<TopicConfig> topic_configs = {"topic1", {"topic2", "libxr_def_domain"}})
+  SharedTopic(LibXR::UART& uart, LibXR::RamFS& ramfs, const char* uart_name = "usart1",
+              uint32_t buffer_size = 256,
+              std::initializer_list<TopicConfig> topic_configs = {"topic1",
+                                                                  {"topic2",
+                                                                   "libxr_def_domain"}})
       : uart_(std::addressof(uart)),
         server_(buffer_size),
         rx_buffer_(new uint8_t[buffer_size], buffer_size),
