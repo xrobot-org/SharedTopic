@@ -2,8 +2,7 @@
 
 // clang-format off
 /* === MODULE MANIFEST V2 ===
-module_description: SharedTopic 是一个基于 UART 的多 Topic 数据共享与解析服务端模块 / SharedTopic is
-  a UART-based multi-topic data sharing and parsing server module
+module_description: 基于 UART 的多 Topic 数据接收与解析模块 / UART-based Module that receives and parses multi-Topic data
 depends: []
 === END MANIFEST === */
 // clang-format on
