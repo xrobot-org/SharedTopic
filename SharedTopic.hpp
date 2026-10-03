@@ -22,19 +22,60 @@ depends: []
 #include "thread.hpp"
 #include "uart.hpp"
 
+/**
+ * @brief 基于 UART 的 Topic 数据接收端，解析数据包并发布到本地 Topic。
+ *        UART-based Topic receiver; parses the packets and publishes them to local
+ *        Topics.
+ */
 class SharedTopic
 {
  public:
+  /**
+   * @brief 需要注册并分发的 Topic。
+   *        A Topic to register and dispatch.
+   */
   struct TopicConfig
   {
-    const char* name;
-    const char* domain = "libxr_def_domain";
+    const char* name;                         ///< Topic 名称 Topic name
+    const char* domain = "libxr_def_domain";  ///< Topic 所在的 domain Domain of the Topic
 
+    /**
+     * @brief 使用默认 domain `libxr_def_domain` 构造。
+     *        Construct with the default domain `libxr_def_domain`.
+     *
+     * @param name Topic 名称。
+     *             Topic name.
+     */
     TopicConfig(const char* name) : name(name) {}
 
+    /**
+     * @brief 构造并指定 domain。
+     *        Construct with an explicit domain.
+     *
+     * @param name Topic 名称。
+     *             Topic name.
+     * @param domain Topic 所在的 domain。
+     *               Domain of the Topic.
+     */
     TopicConfig(const char* name, const char* domain) : name(name), domain(domain) {}
   };
 
+  /**
+   * @brief 构造 SharedTopic：注册 topic_configs 中的 Topic，添加命令并创建接收线程。
+   *        Construct SharedTopic: register the Topics of topic_configs, add the RamFS
+   *        command and create the receive thread.
+   *
+   * @param uart 接收数据包的 UART，须有可读的 read port。
+   *             UART the packets arrive on; it must have a readable read port.
+   * @param ramfs 接收 `shared_topic:<uart_name>` 命令的 RamFS。
+   *              RamFS that receives the `shared_topic:<uart_name>` command.
+   * @param uart_name RamFS 命令名的后缀。
+   *                  Suffix of the RamFS command name.
+   * @param buffer_size 解析缓冲区与读取块的字节数。
+   *                    Size in bytes of the parser buffer and the read chunk.
+   * @param topic_configs 需要注册并分发的 Topic 列表，Topic 须已存在。
+   *                      Topics to register and dispatch; they must already exist.
+   */
   SharedTopic(
       LibXR::UART& uart,
       LibXR::RamFS& ramfs,
@@ -70,6 +111,20 @@ class SharedTopic
                                     LibXR::Thread::Priority::MEDIUM);
   }
 
+  /**
+   * @brief 命令入口：无参数打印用法，`monitor <time_ms> <interval_ms>` 打印接收速率。
+   *        Command entry: print the usage without arguments; `monitor <time_ms>
+   *        <interval_ms>` prints the receive rate.
+   *
+   * @param self SharedTopic 实例。
+   *             SharedTopic instance.
+   * @param argc 参数个数。
+   *             Argument count.
+   * @param argv 参数列表。
+   *             Argument list.
+   * @return 成功为 0，参数个数无效为 -1。
+   *         0 on success, -1 for an invalid argument count.
+   */
   static int CommandFunc(SharedTopic* self, int argc, char** argv)
   {
     if (argc == 1)
