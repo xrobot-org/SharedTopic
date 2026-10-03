@@ -49,7 +49,7 @@ SharedTopic(LibXR::UART& uart,
 
 - `uart_name`：RamFS 命令名的后缀，默认 `"usart1"`。
 - `buffer_size`：解析缓冲区与读取块的字节数，默认 256。
-- `topic_configs`：需要注册并分发的 Topic 列表。每项是 Topic 名（domain 为 `libxr_def_domain`），或 `{topic, domain}`。默认值 `topic1` 与 `topic2` 是占位名称，按实际 Topic 填写。
+- `topic_configs`：需要注册并分发的 Topic 列表。每项是 Topic 名（domain 为 `libxr_def_domain`），或 `{topic, domain}`。默认值 `{"topic1", {"topic2", "libxr_def_domain"}}` 列出 domain `libxr_def_domain` 中的 `topic1` 与 `topic2`。
 
 Dependencies:
 
@@ -60,7 +60,7 @@ Configuration parameters:
 
 - `uart_name`: suffix of the RamFS command name, default `"usart1"`.
 - `buffer_size`: size in bytes of the parser buffer and the read chunk, default 256.
-- `topic_configs`: list of Topics to register and dispatch. Each item is a Topic name (domain `libxr_def_domain`) or `{topic, domain}`. The defaults `topic1` and `topic2` are placeholder names to be replaced with the actual Topics.
+- `topic_configs`: list of Topics to register and dispatch. Each item is a Topic name (domain `libxr_def_domain`) or `{topic, domain}`. The default `{"topic1", {"topic2", "libxr_def_domain"}}` lists `topic1` and `topic2` in the domain `libxr_def_domain`.
 
 ## 4. Topic
 
