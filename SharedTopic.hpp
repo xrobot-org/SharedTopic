@@ -121,8 +121,9 @@ class SharedTopic
    *             Argument count.
    * @param argv 参数列表。
    *             Argument list.
-   * @return 成功为 0，参数个数无效为 -1。
-   *         0 on success, -1 for an invalid argument count.
+   * @return 成功为 0，参数个数无效或 interval_ms 不大于 0 为 -1。
+   *         0 on success, -1 for an invalid argument count or when interval_ms is not
+   *         greater than 0.
    */
   static int CommandFunc(SharedTopic* self, int argc, char** argv)
   {
@@ -139,6 +140,11 @@ class SharedTopic
       {
         int time = atoi(argv[2]);
         int delay = atoi(argv[3]);
+        if (delay <= 0)
+        {
+          LibXR::STDIO::Printf<"Error: interval_ms must be greater than 0.\r\n">();
+          return -1;
+        }
         auto start = self->rx_count_;
         while (time > 0)
         {
