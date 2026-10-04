@@ -99,7 +99,9 @@ class SharedTopic
       if (topic == nullptr)
       {
         XR_LOG_ERROR("Topic not found: %s/%s", config.domain, config.name);
-        ASSERT(false);
+        // 配置错误：所有构建类型都进入致命错误处理
+        // Configuration error: every build type enters the fatal error handler
+        libxr_fatal_error(__FILE__, __LINE__, false);
       }
       server_.Register(topic);
     }

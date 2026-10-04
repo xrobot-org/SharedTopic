@@ -6,14 +6,14 @@
 
 SharedTopic 从 UART 接收 `SharedTopicClient`（或其他使用 LibXR Topic 打包格式的发送端）发来的 Topic 数据包，解析后发布到本地 Topic。
 
-- 构造时，SharedTopic 在 `topic_configs` 给出的 domain 中查找每个 Topic，并注册到 `LibXR::Topic::Server`。Topic 须已由先构造的实例或 BSP 创建，找不到时打印 `Topic not found` 并触发 `ASSERT`。UART 须有可读的 read port。
+- 构造时，SharedTopic 在 `topic_configs` 给出的 domain 中查找每个 Topic，并注册到 `LibXR::Topic::Server`。Topic 须已由先构造的实例或 BSP 创建，找不到时输出错误日志 `Topic not found`，随后进入 LibXR 的致命错误处理（debug 与 release 构建相同）。UART 须有可读的 read port。
 - 接收线程 `shared_topic`（`MEDIUM` 优先级，栈 2048）用 UART 的阻塞读等待可读事件，被唤醒后把已到达的字节按 `buffer_size` 分块读出，再调用 `Topic::Server::ParseData()`。解析出的 Topic 以普通发布语义发布，并保留数据包中的 envelope timestamp。
 - Topic 在接收线程中发布。
 - `buffer_size` 同时是解析缓冲区和单次读取块的大小，须不小于需要接收的最大单个 Topic 数据包。
 
 On receipt, SharedTopic takes the Topic packets sent over a UART by `SharedTopicClient` (or any sender using the LibXR Topic packet format), parses them and publishes them to local Topics.
 
-- Upon construction, SharedTopic looks up every Topic of `topic_configs` in its domain and registers it with a `LibXR::Topic::Server`. The Topics must already have been created by an earlier instance or by the BSP; when one is not found, `Topic not found` is logged and an `ASSERT` fails. The UART must have a readable read port.
+- Upon construction, SharedTopic looks up every Topic of `topic_configs` in its domain and registers it with a `LibXR::Topic::Server`. The Topics must already have been created by an earlier instance or by the BSP; a Topic that is not found is logged as the error `Topic not found` and then enters the LibXR fatal error handler (the same in debug and release builds). The UART must have a readable read port.
 - The receive thread `shared_topic` (`MEDIUM` priority, stack 2048) waits on a blocking UART read, then drains the bytes that have arrived in chunks of up to `buffer_size` and passes them to `Topic::Server::ParseData()`. Parsed Topics are published with normal publish semantics and keep the envelope timestamp carried in the packet.
 - Topics are published from the receive thread.
 - `buffer_size` is both the parser buffer and the read chunk size; it must be at least the size of the largest single Topic packet to be received.
